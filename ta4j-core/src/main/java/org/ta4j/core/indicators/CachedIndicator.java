@@ -29,6 +29,7 @@ import org.ta4j.core.Indicator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Cached {@link Indicator indicator}.
@@ -50,6 +51,12 @@ public abstract class CachedIndicator<T> extends AbstractIndicator<T> {
      * last calculated result.
      */
     protected int highestResultIndex = -1;
+
+    /**
+     * Function which can be used to gets value in different way,
+     * e.g. download value from DB or other source
+     */
+    protected Function<Integer, T> valueFromOutsideSource;
 
     /**
      * Constructor.
@@ -96,26 +103,26 @@ public abstract class CachedIndicator<T> extends AbstractIndicator<T> {
                 // It should be "result = calculate(removedBarsCount);".
                 // We use "result = calculate(0);" as a workaround
                 // to fix issue #120 (https://github.com/mdeverdelhan/ta4j/issues/120).
-                result = calculate(0);
+                result = innerCalculate(0);
                 results.set(0, result);
             }
         } else {
             if (index == series.getEndIndex()) {
                 // Don't cache result if last bar
-                result = calculate(index);
+                result = innerCalculate(index);
             } else {
                 increaseLengthTo(index, maximumResultCount);
                 if (index > highestResultIndex) {
                     // Result not calculated yet
                     highestResultIndex = index;
-                    result = calculate(index);
+                    result = innerCalculate(index);
                     results.set(results.size() - 1, result);
                 } else {
                     // Result covered by current cache
                     int resultInnerIndex = results.size() - 1 - (highestResultIndex - index);
                     result = results.get(resultInnerIndex);
                     if (result == null) {
-                        result = calculate(index);
+                        result = innerCalculate(index);
                         results.set(resultInnerIndex, result);
                     }
                 }
@@ -125,11 +132,34 @@ public abstract class CachedIndicator<T> extends AbstractIndicator<T> {
         return result;
     }
 
+    public void setValueFromOutsideSource(Function<Integer, T> valueFromOutsideSource) {
+        this.valueFromOutsideSource = valueFromOutsideSource;
+    }
+
     /**
      * @param index the bar index
      * @return the value of the indicator
      */
     protected abstract T calculate(int index);
+
+    /**
+     * Inner calculate method used to calculate value.
+     * If valueFromOutsideSource function is defined
+     * value from that function will be get.
+     *
+     * @param index bar index
+     * @return indicator value
+     */
+    private T innerCalculate(int index) {
+        if (valueFromOutsideSource != null) {
+            T calculatedValue = valueFromOutsideSource.apply(index);
+            if (calculatedValue != null) {
+                log.trace("Value calculated by outside method");
+                return calculatedValue;
+            }
+        }
+        return calculate(index);
+    }
 
     /**
      * Increases the size of cached results buffer.

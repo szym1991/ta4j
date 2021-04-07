@@ -185,4 +185,26 @@ public class CachedIndicatorTest extends AbstractIndicatorTest<Indicator<Num>, N
         assertNumEquals(2, closePrice.getValue(1));
     }
 
+    @Test
+    public void getValuesFromOutsideSource() {
+        SMAIndicator sma = new SMAIndicator(new ClosePriceIndicator(series), 3);
+        sma.setValueFromOutsideSource(index -> {
+            if (index == 3) {
+                return numOf(1);
+            }
+            return null;
+        });
+
+
+        Num firstTimeBeforeChangedIndex = sma.getValue(2);
+        Num secondTimeBeforeChangedIndex = sma.getValue(2);
+        assertEquals(firstTimeBeforeChangedIndex, secondTimeBeforeChangedIndex);
+
+        assertNumEquals(1, sma.getValue(3));
+
+        Num firstTimeAfterChangedIndex = sma.getValue(4);
+        Num secondTimeAfterChangedIndex = sma.getValue(4);
+        assertEquals(firstTimeAfterChangedIndex, secondTimeAfterChangedIndex);
+    }
+
 }
